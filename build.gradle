@@ -12,6 +12,7 @@
 import java.nio.file.Files
 import org.gradle.api.internal.tasks.testing.junitplatform.JUnitPlatformTestFramework
 import org.opensearch.gradle.test.RestIntegTestTask
+import org.gradle.process.ExecOperations
 
 buildscript {
     ext {
@@ -26,7 +27,7 @@ buildscript {
     repositories {
         mavenLocal()
         mavenCentral()
-        maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
+        maven { url = "https://aws.oss.sonatype.org/content/repositories/snapshots" }
     }
 
     dependencies {
@@ -50,9 +51,9 @@ apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.testclusters'
 
 opensearchplugin {
-    name 'opensearch-sdk-java'
-    description 'OpenSearch Software Development Kit'
-    classname 'org.opensearch.sdk.sample.helloworld.HelloWorldExtension'
+    name = 'opensearch-sdk-java'
+    description = 'OpenSearch Software Development Kit'
+    classname = 'org.opensearch.sdk.sample.helloworld.HelloWorldExtension'
 }
 
 ext {
@@ -88,7 +89,7 @@ allprojects {
 }
 
 
-group 'org.opensearch.sdk'
+group = 'org.opensearch.sdk'
 
 allprojects {
     // Default to the apache license
@@ -131,8 +132,8 @@ publishing {
                 name = "Snapshots" //  optional target repository name
                 url = "https://aws.oss.sonatype.org/content/repositories/snapshots"
                 credentials {
-                    username "$System.env.SONATYPE_USERNAME"
-                    password "$System.env.SONATYPE_PASSWORD"
+                    username = "$System.env.SONATYPE_USERNAME"
+                    password = "$System.env.SONATYPE_PASSWORD"
                 }
             }
         }
@@ -155,14 +156,14 @@ javadoc {
 repositories {
     mavenLocal()
     mavenCentral()
-    maven { url "https://aws.oss.sonatype.org/content/repositories/snapshots" }
-    maven { url "https://ci.opensearch.org/ci/dbc/snapshots/lucene/"}
+    maven { url = "https://aws.oss.sonatype.org/content/repositories/snapshots" }
+    maven { url = "https://ci.opensearch.org/ci/dbc/snapshots/lucene/"}
 }
 
 dependencies {
 
     def opensearchVersion = "${opensearch_version}"
-    def opensearchJavaClientVersion = "2.1.0-SNAPSHOT"
+    def opensearchJavaClientVersion = "2.19.0"
     def log4jVersion = "2.20.0"
     def nettyVersion = "4.1.101.Final"
     def jacksonDatabindVersion = "2.17.2"
@@ -227,6 +228,9 @@ dependencies {
         resolutionStrategy.force("org.apache.logging.log4j:log4j-core:${log4jVersion}")
         resolutionStrategy.force("org.apache.logging.log4j:log4j-jul:${log4jVersion}")
         resolutionStrategy.force("org.opensearch.client:opensearch-rest-client:${opensearchVersion}")
+        resolutionStrategy.force("commons-logging:commons-logging:1.3.4")
+        resolutionStrategy.force("org.apache.httpcomponents.core5:httpcore5:5.3.1")
+        resolutionStrategy.force("org.apache.httpcomponents.core5:httpcore5-h2:5.3.1")
     }
 }
 
@@ -237,6 +241,131 @@ task helloWorld(type: JavaExec) {
     mainClass = 'org.opensearch.sdk.sample.helloworld.HelloWorldExtension'
     classpath = sourceSets.main.runtimeClasspath
     systemProperty 'log4j2.configurationFile', 'log4j2-sdk.xml'
+}
+
+// this task runs the DiskANN sample extension
+task diskANN(type: JavaExec) {
+    group = 'Execution'
+    description = 'Run DiskANN Extension.'
+    mainClass = 'org.opensearch.sdk.sample.diskann.DiskANNExtension'
+    classpath = sourceSets.main.runtimeClasspath
+    systemProperty 'log4j2.configurationFile', 'log4j2-sdk.xml'
+    // Set working directory to project root so relative paths work
+    workingDir = projectDir
+}
+
+// this task creates a JAR file for the DiskANN extension
+task diskANNJar(type: Jar) {
+    group = 'Build'
+    description = 'Build DiskANN Extension JAR.'
+    archiveClassifier = 'diskann'
+    from sourceSets.main.output
+    include 'org/opensearch/sdk/sample/diskann/**'
+    include 'sample/diskann-settings.yml'
+    
+    manifest {
+        attributes(
+            'Main-Class': 'org.opensearch.sdk.sample.diskann.DiskANNExtension',
+            'Class-Path': configurations.runtimeClasspath.collect { it.getName() }.join(' ')
+        )
+    }
+}
+
+// this task creates a fat JAR for the DiskANN extension with all dependencies
+task diskANNFatJar(type: Jar) {
+    group = 'Build'
+    description = 'Build DiskANN Extension Fat JAR with dependencies.'
+    archiveClassifier = 'diskann-fat'
+    from sourceSets.main.output
+    include 'org/opensearch/sdk/sample/diskann/**'
+    include 'sample/diskann-settings.yml'
+    
+    // Include dependencies
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    
+    manifest {
+        attributes('Main-Class': 'org.opensearch.sdk.sample.diskann.DiskANNExtension')
+    }
+    
+    // Avoid conflicts
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+// this task checks if DiskANN binaries are executable
+task checkDiskANNBinaries {
+    group = 'Verification'
+    description = 'Check if DiskANN binaries are executable.'
+    doLast {
+        def appsDir = file('src/main/java/org/opensearch/sdk/sample/diskann/apps')
+        def binaries = ['build_memory_index', 'build_disk_index', 'search_memory_index', 'search_disk_index']
+        
+        println("Checking DiskANN binaries in: ${appsDir.absolutePath}")
+        
+        def allExecutable = true
+        binaries.each { binary ->
+            def binaryFile = new File(appsDir, binary)
+            if (binaryFile.exists()) {
+                if (binaryFile.canExecute()) {
+                    println("✓ ${binary} - executable")
+                } else {
+                    println("✗ ${binary} - not executable")
+                    allExecutable = false
+                }
+            } else {
+                println("✗ ${binary} - not found")
+                allExecutable = false
+            }
+        }
+        
+        if (allExecutable) {
+            println("All DiskANN binaries are ready!")
+        } else {
+            println("Some DiskANN binaries are missing or not executable.")
+            println("Make sure to:")
+            println("1. Build DiskANN from source")
+            println("2. Copy binaries to: ${appsDir.absolutePath}")
+            println("3. Make binaries executable: chmod +x <binary>")
+        }
+    }
+}
+
+// this task shows all available DiskANN tasks
+task diskANNHelp {
+    group = 'Help'
+    description = 'Show available DiskANN tasks and usage.'
+    doLast {
+        println("""
+DiskANN Extension Tasks:
+=======================
+
+Building:
+  diskANNJar         - Build DiskANN extension JAR
+  diskANNFatJar      - Build DiskANN extension fat JAR with all dependencies
+  
+Running:
+  diskANN            - Run DiskANN extension
+  checkDiskANNBinaries - Check if DiskANN binaries are executable
+  
+Testing:
+  diskANNIntegTest   - Run DiskANN integration tests
+  
+Usage Examples:
+  ./gradlew diskANN                    # Run the extension
+  ./gradlew diskANNJar                 # Build JAR
+  ./gradlew checkDiskANNBinaries       # Check setup
+  ./gradlew diskANNIntegTest           # Run tests
+  
+API Endpoints (when running):
+  POST /diskann/index                  # Create index
+  POST /diskann/search                 # Search vectors
+  GET  /diskann/health                 # Health check
+  GET  /diskann/stats                  # Statistics
+  
+See src/main/java/org/opensearch/sdk/sample/diskann/README.md for full documentation.
+        """)
+    }
 }
 
 task getVersion() {
@@ -251,7 +380,7 @@ test {
     systemProperty 'tests.security.manager', 'false'
     testLogging {
         events "passed", "skipped", "failed"
-        exceptionFormat "full"
+        exceptionFormat = "full"
     }
     jacoco {
         classDumpDir = file("$buildDir/jacoco/classpathdumps")
@@ -270,12 +399,12 @@ jacocoTestReport {
 // https://github.com/form-com/diff-coverage-gradle/issues/73
 ext.createDiffFile = { ->
     def file = Files.createTempFile(URLEncoder.encode(project.name, 'UTF-8'), '.diff').toFile()
-    def diffBase = 'refs/remotes/origin/main'
+    def diffBase = 'refs/remotes/origin/1.x'
     // Only run locally
     if (!System.getenv('CI')) {
         file.withOutputStream { out ->
-            exec {
-                commandLine 'git', 'diff', '--no-color', '--minimal', diffBase
+            project.getServices().get(ExecOperations).exec {
+                commandLine('git', 'diff', '--no-color', '--minimal', diffBase)
                 standardOutput = out
             }
         }
@@ -316,6 +445,15 @@ task startTestExtension {
     }
 }
 
+task startDiskANNTestExtension {
+    doFirst{
+        ext.process = new ProcessBuilder()
+                .directory(projectDir)
+                .command("./gradlew", "diskANN")
+                .start()
+    }
+}
+
 integTest {
     dependsOn(startTestExtension)
 
@@ -352,6 +490,41 @@ task closeTestExtension {
         if (tasks.startTestExtension.process != null) {
             tasks.startTestExtension.process.destroy()
         }
+    }
+}
+
+task closeDiskANNTestExtension {
+    doFirst {
+        if (tasks.startDiskANNTestExtension.process != null) {
+            tasks.startDiskANNTestExtension.process.destroy()
+        }
+    }
+}
+
+// Integration test specifically for DiskANN extension
+task diskANNIntegTest(type: RestIntegTestTask) {
+    description = "Run DiskANN tests against a cluster"
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    dependsOn(startDiskANNTestExtension)
+    finalizedBy(closeDiskANNTestExtension)
+    
+    systemProperty 'tests.security.manager', 'false'
+    systemProperty "https", System.getProperty("https")
+    systemProperty "user", System.getProperty("user")
+    systemProperty "password", System.getProperty("password")
+    
+    doFirst {
+        def isDebuggingCluster = getDebug() || System.getProperty("test.debug") != null
+        systemProperty 'cluster.debug', isDebuggingCluster
+        systemProperty 'cluster.number_of_nodes', "1"
+        getClusters().forEach { cluster ->
+            cluster.waitForAllConditions()
+        }
+    }
+    
+    if (System.getProperty("test.debug") != null) {
+        jvmArgs '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005'
     }
 }
 

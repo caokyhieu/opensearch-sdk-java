@@ -1,0 +1,10 @@
+{
+    "name": "DiskANN Extension",
+    "uniqueId": "diskann-extension-java",
+    "hostAddress": "127.0.0.1",
+    "port": "9301",
+    "version": "1.0",
+    "opensearchVersion": "2.19.1",
+    "minimumCompatibleVersion": "2.19.1",
+    "dependencies": []
+}

@@ -14,15 +14,16 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.SharedGroupFactory;
 import org.opensearch.transport.TcpChannel;
 import org.opensearch.transport.netty4.Netty4Transport;
+import org.opensearch.telemetry.tracing.Tracer;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
@@ -67,7 +68,8 @@ public class SSLNettyTransport extends Netty4Transport {
         final NamedWriteableRegistry namedWriteableRegistry,
         final CircuitBreakerService circuitBreakerService,
         final SslKeyStore ossks,
-        SharedGroupFactory sharedGroupFactory
+        final SharedGroupFactory sharedGroupFactory,
+        final Tracer tracer
     ) {
         super(
             settings,
@@ -77,7 +79,8 @@ public class SSLNettyTransport extends Netty4Transport {
             pageCacheRecycler,
             namedWriteableRegistry,
             circuitBreakerService,
-            sharedGroupFactory
+            sharedGroupFactory,
+            tracer
         );
 
         this.ossks = ossks;

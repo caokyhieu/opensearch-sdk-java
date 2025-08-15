@@ -14,8 +14,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.indices.breaker.CircuitBreakerService;
-import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.sdk.ssl.DefaultSslKeyStore;
 import org.opensearch.sdk.ssl.SSLConfigConstants;
 import org.opensearch.sdk.ssl.SSLNettyTransport;
@@ -25,6 +25,9 @@ import org.opensearch.transport.SharedGroupFactory;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.netty4.Netty4Transport;
+import org.opensearch.telemetry.tracing.Tracer;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
+
 
 import java.nio.file.Path;
 import java.util.Collections;
@@ -75,7 +78,9 @@ public class NettyTransport {
             pageCacheRecycler,
             extensionsRunner.getNamedWriteableRegistry().getRegistry(),
             circuitBreakerService,
-            new SharedGroupFactory(settings)
+            new SharedGroupFactory(settings),
+            NoopTracer.INSTANCE 
+
         );
 
         if (transportSSLEnabled) {
@@ -90,7 +95,8 @@ public class NettyTransport {
                 extensionsRunner.getNamedWriteableRegistry().getRegistry(),
                 circuitBreakerService,
                 sks,
-                new SharedGroupFactory(settings)
+                new SharedGroupFactory(settings),
+                NoopTracer.INSTANCE 
             );
         }
 
@@ -120,7 +126,8 @@ public class NettyTransport {
                 randomBase64UUID()
             ),
             null,
-            emptySet()
+            emptySet(),
+null
         );
         extensionsRunner.startTransportService(transportService);
         return transportService;

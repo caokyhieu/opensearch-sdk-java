@@ -19,7 +19,7 @@ import org.opensearch.rest.RestHandler.ReplacedRoute;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
-import org.opensearch.rest.RestStatus;
+import org.opensearch.core.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -30,8 +30,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.opensearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
-import static org.opensearch.rest.RestStatus.NOT_FOUND;
+import static org.opensearch.core.rest.RestStatus.INTERNAL_SERVER_ERROR;
+import static org.opensearch.core.rest.RestStatus.NOT_FOUND;
 import static org.apache.http.entity.ContentType.APPLICATION_JSON;
 
 /**
