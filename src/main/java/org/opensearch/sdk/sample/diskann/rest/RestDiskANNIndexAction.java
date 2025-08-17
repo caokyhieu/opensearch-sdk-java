@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.io.*;
+import java.util.concurrent.*;
+
 
 import static org.opensearch.rest.RestRequest.Method.POST;
 import static org.opensearch.core.rest.RestStatus.BAD_REQUEST;
@@ -48,34 +51,46 @@ public class RestDiskANNIndexAction extends BaseExtensionRestHandler {
             Map<String, Object> params = request.contentParser().map();
             
             String dataPath = (String) params.get("data_path");
-            String indexPath = (String) params.get("index_path");
+            String indexPath = (String) params.get("index_path_prefix");
             String indexType = (String) params.getOrDefault("index_type", "memory");
-            Integer dimensions = (Integer) params.get("dimensions");
+            String dataType = (String) params.getOrDefault("data_type", "float");
+            String distanceFunction = (String) params.getOrDefault("dist_fn", "l2");
             Integer maxDegree = (Integer) params.getOrDefault("max_degree", 64);
-            Integer beamWidth = (Integer) params.getOrDefault("beam_width", 128);
-            Double alpha = (Double) params.getOrDefault("alpha", 1.2);
+            Integer lBuild = (Integer) params.getOrDefault("lbuild", 100); // Build-time search working set
+            Integer numThreads = (Integer) params.getOrDefault("num_threads", 4);
+            Double searchDramBudget = (Double) params.getOrDefault("search_dram_budget", 1.0);
+            Double buildDramBudget = (Double) params.getOrDefault("build_dram_budget", 2.0);
 
-            if (dataPath == null || indexPath == null || dimensions == null) {
+            if (dataPath == null || indexPath == null) {
                 return new ExtensionRestResponse(
                     request, 
                     BAD_REQUEST, 
-                    "Required parameters: data_path, index_path, dimensions"
+                    "Required parameters: data_path (input data file in bin format), index_path_prefix (output index path)"
                 );
             }
 
-            // Simulate DiskANN index creation process
-            String command = buildDiskANNCommand(indexType, dataPath, indexPath, dimensions, maxDegree, beamWidth, alpha);
+            // Build DiskANN index creation command
+            String command = buildDiskANNCommand(indexType, dataPath, indexPath, dataType, distanceFunction, 
+                                               maxDegree, lBuild, numThreads, searchDramBudget, buildDramBudget);
             
             // In a real implementation, this would execute the DiskANN binary
             // For this example, we'll simulate the response
-            String simulatedOutput = simulateIndexCreation(command);
+            // String simulatedOutput = simulateIndexCreation(command);
+            String simulatedOutput = executeCommand(command, 300);
 
             XContentBuilder builder = JsonXContent.contentBuilder()
                 .startObject()
                 .field("status", "success")
                 .field("index_type", indexType)
-                .field("index_path", indexPath)
-                .field("dimensions", dimensions)
+                .field("data_type", dataType)
+                .field("distance_function", distanceFunction)
+                .field("data_path", dataPath)
+                .field("index_path_prefix", indexPath)
+                .field("max_degree", maxDegree)
+                .field("lbuild", lBuild)
+                .field("num_threads", numThreads)
+                .field("search_dram_budget_gb", searchDramBudget)
+                .field("build_dram_budget_gb", buildDramBudget)
                 .field("command", command)
                 .field("output", simulatedOutput)
                 .endObject();
@@ -88,21 +103,46 @@ public class RestDiskANNIndexAction extends BaseExtensionRestHandler {
     };
 
     private String buildDiskANNCommand(String indexType, String dataPath, String indexPath, 
-                                     Integer dimensions, Integer maxDegree, Integer beamWidth, Double alpha) {
+                                     String dataType, String distFn, Integer maxDegree, 
+                                     Integer lBuild, Integer numThreads, Double searchDramBudget, 
+                                     Double buildDramBudget) {
         StringBuilder cmd = new StringBuilder();
         
-        if ("ssd".equals(indexType)) {
-            cmd.append("diskann_ssd_index");
-        } else {
-            cmd.append("diskann_index");
+        // Use the actual DiskANN binary from the apps directory
+        String binaryPath = "src/main/java/org/opensearch/sdk/sample/diskann/apps/build_disk_index";
+        cmd.append(binaryPath);
+        
+        // Required parameters following Microsoft DiskANN workflow pattern
+        cmd.append(" --data_type ").append(dataType)           // float, int8, uint8
+           .append(" --dist_fn ").append(distFn)               // l2, cosine, mips
+           .append(" --data_path ").append(dataPath)           // input .bin file
+           .append(" --index_path_prefix ").append(indexPath); // output index prefix
+        
+        // Optional parameters with short flags (following DiskANN convention)
+        if (maxDegree != null) {
+            cmd.append(" -R ").append(maxDegree);  // Graph degree
         }
         
-        cmd.append(" --data_path ").append(dataPath)
-           .append(" --index_path ").append(indexPath)
-           .append(" --dimensions ").append(dimensions)
-           .append(" --max_degree ").append(maxDegree)
-           .append(" --beam_width ").append(beamWidth)
-           .append(" --alpha ").append(alpha);
+        if (lBuild != null) {
+            cmd.append(" -L ").append(lBuild);     // Build search list size
+        }
+        
+        if (searchDramBudget != null) {
+            cmd.append(" -B ").append(searchDramBudget);  // Search DRAM budget in GB
+        }
+        
+        if (buildDramBudget != null) {
+            cmd.append(" -M ").append(buildDramBudget);   // Build DRAM budget in GB
+        }
+        
+        if (numThreads != null) {
+            cmd.append(" -T ").append(numThreads);        // Number of threads
+        }
+        
+        // For SSD-optimized index, add compression parameters
+        if ("ssd".equals(indexType)) {
+            cmd.append(" --PQ_disk_bytes 16") ;             // Compress to 16 bytes on disk
+        }
            
         return cmd.toString();
     }
@@ -113,5 +153,51 @@ public class RestDiskANNIndexAction extends BaseExtensionRestHandler {
                "Index built with 10000 vectors, 128 dimensions\n" +
                "Build time: 45.2 seconds\n" +
                "Memory usage: 2.1 GB";
+    }
+
+    private String executeCommand(String command, long timeoutSeconds) {
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder(command.split(" "));
+            processBuilder.redirectErrorStream(true);
+            Process process = processBuilder.start();
+    
+            // Read output asynchronously
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            Future<String> outputFuture = executor.submit(() -> {
+                StringBuilder output = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        output.append(line).append("\n");
+                    }
+                }
+                return output.toString();
+            });
+    
+            // Wait for process to finish or timeout
+            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+            String output = "";
+    
+            try {
+                // try to get whatever output we have so far
+                output = outputFuture.get(1, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                output = "Output reader timeout";
+            }
+    
+            if (!finished) {
+                process.destroyForcibly();
+                executor.shutdownNow();
+                return "Error: Process timed out\nPartial Output:\n" + output;
+            }
+    
+            int exitCode = process.exitValue();
+            executor.shutdown();
+            return "Exit code: " + exitCode + "\nOutput:\n" + output;
+    
+        } catch (Exception e) {
+            return "Error executing command: " + e.getMessage();
+        }
     }
 }

@@ -307,11 +307,14 @@ public class RestDiskANNAdvancedSearchAction extends BaseExtensionRestHandler {
         String binary = "memory".equals(indexType) ? "search_memory_index" : "search_disk_index";
         return APPS_PATH + "/" + binary + " " +
                "--index_path_prefix " + indexPath + " " +
+               "--data_type float " + 
+               "--dist_fn l2 " + 
                "--query_file " + queryFile + " " +
                "--gt_file " + resultFile + " " +
                "-K " + k + " " +
+               "-L 10 20 30 40 50 100 " +
                "-W " + beamWidth + " " +
-               "--result_output_prefix " + resultFile;
+               "--result_path " + resultFile;
     }
 
     private String buildRangeSearchCommand(String indexPath, String queryFile, String resultFile, 

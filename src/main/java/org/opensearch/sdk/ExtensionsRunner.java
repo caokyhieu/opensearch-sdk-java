@@ -231,10 +231,20 @@ public class ExtensionsRunner {
         extensionsActionRequestHandler = new ExtensionActionRequestHandler(getSdkClient());
 
         if (extension instanceof ActionExtension) {
+            logger.info("=== Extension implements ActionExtension, registering REST handlers ===");
+            List<ExtensionRestHandler> restHandlers = ((ActionExtension) extension).getExtensionRestHandlers();
+            logger.info("Extension provides {} REST handlers", restHandlers.size());
+            
             // store REST handlers in the registry
-            for (ExtensionRestHandler extensionRestHandler : ((ActionExtension) extension).getExtensionRestHandlers()) {
+            for (ExtensionRestHandler extensionRestHandler : restHandlers) {
+                logger.info("Registering REST handler: {}", extensionRestHandler.getClass().getName());
                 extensionRestPathRegistry.registerHandler(extensionRestHandler);
             }
+            
+            logger.info("All REST handlers registered. Registry now contains {} paths", 
+                       extensionRestPathRegistry.getRegisteredPaths().size());
+        } else {
+            logger.warn("Extension does NOT implement ActionExtension - no REST handlers will be registered");
         }
     }
 

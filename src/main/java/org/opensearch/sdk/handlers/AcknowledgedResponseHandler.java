@@ -24,15 +24,32 @@ import java.io.IOException;
  */
 public class AcknowledgedResponseHandler implements TransportResponseHandler<AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(AcknowledgedResponseHandler.class);
+    private final String context;
+
+    /**
+     * Default constructor for backward compatibility
+     */
+    public AcknowledgedResponseHandler() {
+        this.context = "Extension Request";
+    }
+
+    /**
+     * Constructor with context for better logging
+     * @param context The context/operation being performed
+     */
+    public AcknowledgedResponseHandler(String context) {
+        this.context = context;
+    }
 
     @Override
     public void handleResponse(AcknowledgedResponse response) {
-        logger.info("received {}", response);
+        logger.info("SUCCESS: {} completed - received response: {}", context, response);
     }
 
     @Override
     public void handleException(TransportException exp) {
-        logger.info("Extension Request failed", exp);
+        logger.error("CRITICAL FAILURE: {} failed with exception", context, exp);
+        logger.error("This indicates a serious communication issue with OpenSearch");
     }
 
     @Override

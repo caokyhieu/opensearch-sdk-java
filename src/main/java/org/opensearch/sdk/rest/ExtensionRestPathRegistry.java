@@ -9,9 +9,14 @@
 
 package org.opensearch.sdk.rest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
+import org.opensearch.rest.RestHandler.DeprecatedRoute;
+import org.opensearch.rest.RestHandler.ReplacedRoute;
+import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.RestUtils;
 import org.opensearch.sdk.rest.BaseExtensionRestHandler.ExtensionDeprecationRestHandler;
@@ -38,9 +43,24 @@ public class ExtensionRestPathRegistry {
      * @param restHandler The RestHandler to register routes.
      */
     public void registerHandler(ExtensionRestHandler restHandler) {
+        Logger logger = LogManager.getLogger(ExtensionRestPathRegistry.class);
+        logger.info("=== Registering REST Handler: {} ===", restHandler.getClass().getSimpleName());
+        
+        List<Route> routes = restHandler.routes();
+        logger.info("Found {} regular routes to register", routes.size());
+        
+        for (Route route : routes) {
+            logger.info("Registering route: {} {}", route.getMethod(), route.getPath());
+        }
         restHandler.routes().forEach(route -> registerHandler(route.getMethod(), route.getPath(), restHandler));
+        
+        List<DeprecatedRoute> deprecatedRoutes = restHandler.deprecatedRoutes();
+        logger.info("Found {} deprecated routes to register", deprecatedRoutes.size());
         restHandler.deprecatedRoutes()
             .forEach(route -> registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage()));
+            
+        List<ReplacedRoute> replacedRoutes = restHandler.replacedRoutes();
+        logger.info("Found {} replaced routes to register", replacedRoutes.size());
         restHandler.replacedRoutes()
             .forEach(
                 route -> registerWithDeprecatedHandler(
@@ -51,6 +71,9 @@ public class ExtensionRestPathRegistry {
                     route.getDeprecatedPath()
                 )
             );
+            
+        logger.info("REST Handler registration completed. Total registered paths: {}", registeredPaths.size());
+        logger.info("Current registered paths: {}", registeredPaths);
     }
 
     /**
@@ -165,15 +188,26 @@ public class ExtensionRestPathRegistry {
     }
 
     /**
-     * Converts a REST method and path to a space delimited string.
+     * Converts a REST method and path to a space delimited string with unique action name.
      * <p>
      * This provides convenience for logging and serialization over transport.
+     * OpenSearch 2.19+ requires a unique action name for REST actions.
      *
      * @param method  the method.
      * @param path  the path.
-     * @return A string appending the method and path.
+     * @return A string appending the method, path, and unique action name.
      */
     public static String restPathToString(Method method, String path) {
-        return method.name() + " " + path;
+        String actionName = generateActionName(method, path);
+        return method.name() + " " + path + " " + actionName;
+    }
+    
+    /**
+     * Generate a unique action name based on method and path
+     */
+    private static String generateActionName(Method method, String path) {
+        // Create a unique name by combining method and path, replacing special characters
+        String baseName = method.name().toLowerCase() + "_" + path.replaceAll("[^a-zA-Z0-9]", "_").replaceAll("_{2,}", "_").replaceAll("^_|_$", "");
+        return baseName + "_action";
     }
 }

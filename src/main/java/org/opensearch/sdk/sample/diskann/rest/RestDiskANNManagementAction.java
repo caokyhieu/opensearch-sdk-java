@@ -191,7 +191,8 @@ public class RestDiskANNManagementAction extends BaseExtensionRestHandler {
             }
 
             String command = APPS_PATH + "/utils/compute_groundtruth " +
-                           "--data_file " + dataPath + " " +
+                            "--data_type float " + // should change later
+                           "--base_file " + dataPath + " " +
                            "--query_file " + queryPath + " " +
                            "--gt_file " + outputPath + " " +
                            "--K " + k + " " +

@@ -127,7 +127,7 @@ public class NettyTransport {
             ),
             null,
             emptySet(),
-null
+            NoopTracer.INSTANCE
         );
         extensionsRunner.startTransportService(transportService);
         return transportService;

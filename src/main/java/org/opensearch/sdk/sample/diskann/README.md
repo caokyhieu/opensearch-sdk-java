@@ -49,6 +49,14 @@ POST /diskann/index
 }
 ```
 
+```bash
+curl -X POST "localhost:9200/_extensions/_diskann-extension-java/diskann/index" -H "Content-Type: application/json" -d '{
+  "data_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_learn.fbin",
+  "index_path_prefix": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_index",
+  "index_type": "ssd"
+}'
+```
+
 #### List Indices
 ```bash
 GET /diskann/indices?directory=indices
@@ -89,6 +97,17 @@ POST /diskann/search/batch
   "beam_width": 128,
   "index_type": "memory"
 }
+```
+
+```bash
+curl -X POST "localhost:9200/_extensions/_diskann-extension-java/diskann/search/batch" -H "Content-Type: application/json" -d '{
+  "index_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_index",
+  "query_file": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_query.fbin",
+  "result_file": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/results",
+  "index_type": "ssd",
+  "k": 10,
+  "beam_width": 2
+}'
 ```
 
 #### Range Search
@@ -271,8 +290,8 @@ curl -X POST "localhost:9200/diskann/search" -H "Content-Type: application/json"
 
 ```bash
 # 1. Validate data format
-curl -X POST "localhost:9200/diskann/data/validate" -H "Content-Type: application/json" -d '{
-  "data_path": "data/vectors.fvecs",
+curl -X POST "localhost:9200/_extensions/_diskann-extension-java/diskann/data/validate" -H "Content-Type: application/json" -d '{
+  "data_path": "data/sift/sift_base.fvecs",
   "data_format": "fvecs"
 }'
 
@@ -285,17 +304,17 @@ curl -X POST "localhost:9200/diskann/data/convert" -H "Content-Type: application
 }'
 
 # 3. Analyze dataset
-curl -X GET "localhost:9200/diskann/data/analyze/sift"
+curl -X GET "localhost:9200/_extensions/_diskann-extension-java/diskann/data/analyze/sift"
 ```
 
 ### 3. Performance Evaluation
 
 ```bash
 # 1. Compute groundtruth for evaluation
-curl -X POST "localhost:9200/diskann/groundtruth/compute" -H "Content-Type: application/json" -d '{
-  "data_path": "data/sift_base.fvecs",
-  "query_path": "data/sift_query.fvecs",
-  "output_path": "data/sift_groundtruth.ivecs",
+curl -X POST "localhost:9200/_extensions/_diskann-extension-java/diskann/groundtruth/compute" -H "Content-Type: application/json" -d '{
+  "data_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_learn.fbin",
+  "query_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_query.fbin",
+  "output_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_query_learn_gt100",
   "k": 100
 }'
 

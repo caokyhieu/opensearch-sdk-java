@@ -51,46 +51,85 @@ public class ExtensionsInitRequestHandler {
      * @return A response to OpenSearch validating that this is an extension.
      */
     public InitializeExtensionResponse handleExtensionInitRequest(InitializeExtensionRequest extensionInitRequest) {
-        logger.info("Registering Extension Request received from OpenSearch");
+        logger.info("=== Starting Extension Initialization Process ===");
+        logger.info("Extension ID: {}, Source Node: {}", 
+                   extensionInitRequest.getExtension().getId(), 
+                   extensionInitRequest.getSourceNode().getAddress());
+        
         extensionsRunner.getThreadPool().getThreadContext().putHeader("extension_unique_id", extensionInitRequest.getExtension().getId());
         SDKTransportService sdkTransportService = extensionsRunner.getSdkTransportService();
         sdkTransportService.setOpensearchNode(extensionInitRequest.getSourceNode());
         sdkTransportService.setUniqueId(extensionInitRequest.getExtension().getId());
+        
+        logger.info("Extension basic setup completed, preparing initialization response");
+        
         // Successfully initialized. Send the response.
         try {
-            return new InitializeExtensionResponse(
+            InitializeExtensionResponse response = new InitializeExtensionResponse(
                 extensionsRunner.getSettings().get(NODE_NAME_SETTING),
                 extensionsRunner.getExtensionImplementedInterfaces()
             );
+            logger.info("Extension initialization response created with interfaces: {}", 
+                       extensionsRunner.getExtensionImplementedInterfaces());
+            return response;
         } finally {
+            logger.info("=== Starting Post-Initialization Registration Process ===");
+            
             // After sending successful response to initialization, send the REST API and Settings
             extensionsRunner.setExtensionNode(extensionInitRequest.getExtension());
+            logger.info("Extension node set on runner");
 
+            logger.info("Connecting to OpenSearch node as extension...");
             TransportService extensionTransportService = sdkTransportService.getTransportService();
             extensionTransportService.connectToNodeAsExtension(
                 extensionInitRequest.getSourceNode(),
                 extensionInitRequest.getExtension().getId()
             );
+            logger.info("Connection to OpenSearch node established");
+            
+            logger.info("Starting REST actions registration...");
+            int registeredPathsCount = extensionsRunner.getExtensionRestPathRegistry().getRegisteredPaths().size();
+            logger.info("Extension has {} registered REST paths", registeredPathsCount);
             sdkTransportService.sendRegisterRestActionsRequest(extensionsRunner.getExtensionRestPathRegistry());
+            
+            logger.info("Starting custom settings registration...");
+            int customSettingsCount = extensionsRunner.getCustomSettings().size();
+            logger.info("Extension has {} custom settings", customSettingsCount);
             sdkTransportService.sendRegisterCustomSettingsRequest(extensionsRunner.getCustomSettings());
+            
+            logger.info("Starting transport actions registration...");
+            int transportActionsCount = extensionsRunner.getSdkActionModule().getActions().size();
+            logger.info("Extension has {} transport actions", transportActionsCount);
             sdkTransportService.sendRegisterTransportActionsRequest(extensionsRunner.getSdkActionModule().getActions());
+            
+            logger.info("Requesting environment settings from OpenSearch...");
             // Get OpenSearch Settings and set values on ExtensionsRunner
             Settings settings = sdkTransportService.sendEnvironmentSettingsRequest();
             extensionsRunner.setEnvironmentSettings(settings);
+            logger.info("Environment settings received and set");
+            
+            logger.info("Updating NamedXContentRegistry...");
             extensionsRunner.updateNamedXContentRegistry();
+            
+            logger.info("Updating SDK cluster service...");
             extensionsRunner.updateSdkClusterService();
+            
             // Use OpenSearch Settings to update client REST Connections
             String openSearchNodeAddress = extensionInitRequest.getSourceNode().getAddress().getAddress();
             String openSearchNodeHttpPort = settings.get(HTTP_PORT_SETTING) != null ? settings.get(HTTP_PORT_SETTING) : DEFAULT_HTTP_PORT;
+            logger.info("Updating SDK client settings - OpenSearch address: {}:{}", openSearchNodeAddress, openSearchNodeHttpPort);
             extensionsRunner.getSdkClient().updateOpenSearchNodeSettings(openSearchNodeAddress, openSearchNodeHttpPort);
 
             // Last step of initialization
-            // TODO: make sure all the other sendX methods have completed
-            // https://github.com/opensearch-project/opensearch-sdk-java/issues/17
+            logger.warn("WARNING: Setting extension as initialized without waiting for async operations to complete (known issue #17)");
             extensionsRunner.setInitialized();
+            logger.info("Extension marked as initialized");
 
+            logger.info("Triggering pending settings update consumers...");
             // Trigger pending updates requiring completion of the above actions
             extensionsRunner.getSdkClusterService().getClusterSettings().sendPendingSettingsUpdateConsumers();
+            
+            logger.info("=== Extension Initialization Process Completed ===");
         }
     }
 }

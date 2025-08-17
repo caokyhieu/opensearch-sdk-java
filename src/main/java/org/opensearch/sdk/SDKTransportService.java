@@ -132,22 +132,33 @@ public class SDKTransportService {
     public void sendRegisterRestActionsRequest(ExtensionRestPathRegistry extensionRestPathRegistry) {
         List<String> extensionRestPaths = extensionRestPathRegistry.getRegisteredPaths();
         List<String> extensionDeprecatedRestPaths = extensionRestPathRegistry.getRegisteredDeprecatedPaths();
-        logger.info(
-            "Sending Register REST Actions request to OpenSearch for "
-                + extensionRestPaths
-                + " and deprecated paths "
-                + extensionDeprecatedRestPaths
-        );
-        AcknowledgedResponseHandler registerActionsResponseHandler = new AcknowledgedResponseHandler();
+        
+        logger.info("=== REST Actions Registration Details ===");
+        logger.info("Extension uniqueId: {}", uniqueId);
+        logger.info("Number of REST paths: {}", extensionRestPaths.size());
+        logger.info("Number of deprecated paths: {}", extensionDeprecatedRestPaths.size());
+        logger.info("REST paths to register: {}", extensionRestPaths);
+        logger.info("Deprecated paths to register: {}", extensionDeprecatedRestPaths);
+        logger.info("OpenSearch node: {}", opensearchNode);
+        logger.info("Transport service: {}", transportService != null ? "Available" : "NULL");
+        
+        if (extensionRestPaths.isEmpty()) {
+            logger.warn("WARNING: No REST paths found to register! Extension will not handle any REST requests.");
+        }
+        
+        AcknowledgedResponseHandler registerActionsResponseHandler = new AcknowledgedResponseHandler("REST Actions Registration");
         try {
+            logger.info("Sending RegisterRestActionsRequest to OpenSearch...");
             transportService.sendRequest(
                 opensearchNode,
                 ExtensionsManager.REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
                 new RegisterRestActionsRequest(uniqueId, extensionRestPaths, extensionDeprecatedRestPaths),
                 registerActionsResponseHandler
             );
+            logger.info("RegisterRestActionsRequest sent successfully to OpenSearch");
         } catch (Exception e) {
-            logger.error("Failed to send Register REST Actions request to OpenSearch", e);
+            logger.error("CRITICAL: Failed to send Register REST Actions request to OpenSearch", e);
+            logger.error("This means the extension's REST endpoints will NOT be accessible!");
         }
     }
 
