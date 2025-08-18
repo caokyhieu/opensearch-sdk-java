@@ -423,3 +423,55 @@ This extension demonstrates integration patterns for:
 - REST API design for complex operations
 - Performance monitoring and statistics collection
 - File format handling and data validation
+
+
+
+
+```bash
+## Build Index
+curl -X POST "localhost:9200/_extensions/_diskann-extension-java/diskann/index/disk/build" -H "Content-Type: application/json" -d '{
+      "data_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_learn.fbin",
+      "index_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_index", 
+      "dimensions": 128,
+      "max_degree": 64,
+      "beam_width": 2,
+      "memory_budget": 8.0
+}'
+
+# Search
+ curl -X POST "localhost:9200/_extensions/_diskann-extension-java/diskann/search/batch" -H "Content-Type: application/json" -d '{
+  "index_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_index",
+  "query_file": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_query.fbin",
+  "gt_file": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_query_learn_gt100",
+  "result_path": "results/search_results.txt",
+  "k": 10,
+  "beam_width": 2,
+  "index_type": "disk",
+  "data_type": "float",
+  "distance_metric": "l2"
+}'
+
+curl -X POST "localhost:9200/_extensions/_diskann-extension-java/diskann/index/disk/build" -H "Content-Type: application/json" -d '{
+      "data_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/mo_hq_knowledge/base_mo280w_knowledge.bin",
+      "index_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/mo_hq_knowledge/mo280w_knowledge_index", 
+      "dimensions": 128,
+      "max_degree": 64,
+      "beam_width": 2,
+      "memory_budget": 32.0
+}'
+
+# Search
+ curl -X POST "localhost:9200/_extensions/_diskann-extension-java/diskann/search/batch" -H "Content-Type: application/json" -d '{
+  "index_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/mo_hq_knowledge/mo280w_knowledge_index",
+  "query_file": "src/main/java/org/opensearch/sdk/sample/diskann/data/mo_hq_knowledge/query_mo280w_knowledge.bin",
+  "gt_file": "src/main/java/org/opensearch/sdk/sample/diskann/data/mo_hq_knowledge/answer_mo280w_knowledge.bin",
+  "result_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/mo_hq_knowledge/search_results",
+  "k": 10,
+  "beam_width": 2,
+  "index_type": "disk",
+  "data_type": "float",
+  "distance_metric": "l2"
+}'
+
+
+```
