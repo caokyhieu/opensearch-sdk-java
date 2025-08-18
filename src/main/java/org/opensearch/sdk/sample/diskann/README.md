@@ -327,9 +327,9 @@ curl -X POST "localhost:9200/diskann/benchmark" -H "Content-Type: application/js
 }'
 
 # 3. Calculate recall
-curl -X POST "localhost:9200/diskann/recall/calculate" -H "Content-Type: application/json" -d '{
-  "groundtruth_path": "data/sift_groundtruth.ivecs",
-  "result_path": "results/search_results.txt",
+curl -X POST "localhost:9200/_extensions/_diskann-extension-java/diskann/recall/calculate" -H "Content-Type: application/json" -d '{
+  "groundtruth_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/sift_query_learn_gt100",
+  "result_path": "src/main/java/org/opensearch/sdk/sample/diskann/data/sift/results_100_idx_uint32.bin",
   "k": 10
 }'
 ```

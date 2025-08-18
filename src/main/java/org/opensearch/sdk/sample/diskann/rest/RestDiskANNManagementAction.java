@@ -237,9 +237,9 @@ public class RestDiskANNManagementAction extends BaseExtensionRestHandler {
             }
 
             String command = APPS_PATH + "/utils/calculate_recall " +
-                           "--result_file " + resultPath + " " +
-                           "--gt_file " + groundtruthPath + " " +
-                           "--K " + k;
+                                    groundtruthPath + " " +
+                                    resultPath+ " " +
+                                    k;
             
             String result = executeCommand(command);
 
